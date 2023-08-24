@@ -40,6 +40,7 @@ const createProperty = async (req, res) => {
             creator: user._id,
         });
         user.allProperties.push(newProperty._id);
+        res.status(304).json("Property creaed !!!");
     } catch(error) {
         res.status(500).json({ message: error.message });
     }
