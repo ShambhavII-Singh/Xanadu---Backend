@@ -1,5 +1,6 @@
 import Property from "../mongodb/models/property.js";
 import User from "../mongodb/models/user.js";
+import mongoose from 'mongoose';
 import * as dotenv from 'dotenv';
 import { v2 as cloudinary } from 'cloudinary';
 
@@ -28,26 +29,40 @@ const getAllProperties = async (req, res) => {
 };
 
 const getPropertyDetails = async (req, res) => {
-
+    const { id } = req.params;
+    const propertyExists = await Property.findOne({ _id: id }).populate("creator");
+    if (propertyExists) {res.status(200).json(propertyExists);} 
+    else {res.status(404).json({ message: "Property not found" });}
 };
 
 const createProperty = async (req, res) => {
     try {
         const { title, description, propertyType, price, location, photo, email } = req.body;
-        const user = await User.findOne({ email });
-        if (!user) throw new Error('User not found');
-        const photoURL = await cloudinary.uploader.upload(photo);
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        const user = await User.findOne({ email }).session(session);
+
+        if (!user) throw new Error("User not found");
+
+        const photoUrl = await cloudinary.uploader.upload(photo);
+
         const newProperty = await Property.create({
             title,
             description,
             propertyType,
-            price,
             location,
-            photo: photoURL.url,
+            price,
+            photo: photoUrl.url,
             creator: user._id,
         });
+
         user.allProperties.push(newProperty._id);
-        res.status(304).json("Property created !!!");
+        await user.save({ session });
+
+        await session.commitTransaction();
+
+        res.status(200).json("Property created !!!");
     } catch(error) {
         res.status(500).json({ message: error.message });
     }
@@ -58,7 +73,28 @@ const updateProperty = async (req, res) => {
 };
 
 const deleteProperty = async (req, res) => {
+    try {
+        const { id } = req.params;
 
+        const propertyToDelete = await Property.findById({ _id: id }).populate(
+            "creator",
+        );
+
+        if (!propertyToDelete) throw new Error("Property not found");
+
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        propertyToDelete.deleteOne({ session });
+        propertyToDelete.creator.allProperties.pull(propertyToDelete);
+
+        await propertyToDelete.creator.save({ session });
+        await session.commitTransaction();
+
+        res.status(200).json({ message: "Property deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
 export {
