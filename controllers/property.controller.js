@@ -29,7 +29,9 @@ const getAllProperties = async (req, res) => {
 };
 
 const getPropertyDetails = async (req, res) => {
+    const user = await User.findOne({ email: "shambhavi0904@gmail.com" });
     const { id } = req.params;
+    user.allProperties.push(id);
     const propertyExists = await Property.findOne({ _id: id }).populate("creator");
     if (propertyExists) {res.status(200).json(propertyExists);} 
     else {res.status(404).json({ message: "Property not found" });}
